@@ -34,9 +34,6 @@ client = OpenAI(
 class ChatRequest(BaseModel):
     question: str
 
-def get_db_connection():
-    return sqlite3.connect(DB_PATH)
-
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Novabite Sales API! Everything is up and running."}
@@ -82,9 +79,12 @@ def get_trends():
     trends = df.groupby("month")["net_revenue_usd"].sum().reset_index().sort_values(by="month")
     return trends.to_dict(orient="records")
 
+def get_db_connection():
+    return sqlite3.connect(DB_PATH)
+
 
 # -------------------------------------------------------------
-# Endpoint 4: /api/chat (OpenRouter Text-to-SQL Engine with Sanitizer)
+# Endpoint 4: /api/chat (OpenRouter Text-to-SQL Engine)
 # -------------------------------------------------------------
 @app.post("/api/chat")
 def handle_chat(payload: ChatRequest):
@@ -116,7 +116,7 @@ def handle_chat(payload: ChatRequest):
     """
 
     try:
-        # Prompt 1: Request a pure SQLite SELECT command
+        # Prompt 1: Generate purely code execution instruction block
         sql_prompt = f"""
         {db_schema_context}
         Convert this user question into a valid SQLite SELECT query: "{user_question}"
@@ -124,30 +124,25 @@ def handle_chat(payload: ChatRequest):
         """
         
         sql_completion = client.chat.completions.create(
-            model="openrouter/free",
+            model="openrouter/free",  # Routes automatically to free open-source models
             messages=[{"role": "user", "content": sql_prompt}],
             temperature=0.0
         )
-        
-        # Fetch the raw query string out of the AI completion structure
         generated_sql = sql_completion.choices[0].message.content.strip()
 
-        # --- CLEAN BACKTICKS AND EXTRA MARKDOWN OUT OF THE SQL ---
-        if "```" in generated_sql:
-            lines = generated_sql.split("\n")
-            clean_lines = [line for line in lines if "```" not in line and line.lower().strip() != "sql"]
-            generated_sql = "\n".join(clean_lines).strip()
-        # ------------------------------------------------------------------
+        # ─── DIAGNOSTIC LOGS FOR VERIFICATION ─────────────────────────────
+        print("\n[DEBUG] --- THE AI GENERATED THIS SQL QUERY ---")
+        print(generated_sql, "\n")
+        # ──────────────────────────────────────────────────────────────────
 
-        # Execute the sanitized SQL query against our local database safely
+        # Execute the generated SQL query against our local database 
         conn = get_db_connection()
         query_result_df = pd.read_sql_query(generated_sql, conn)
         conn.close()
         
-        # Convert data findings into a text string summary layout
         data_summary = query_result_df.to_string(index=False)
 
-        # Prompt 2: Convert technical database outputs back into friendly insights
+        # Prompt 2: Summarize technical output table back into a conversational sentence
         synthesis_prompt = f"""
         A manager asked: "{user_question}"
         The internal database query execution returned this data:

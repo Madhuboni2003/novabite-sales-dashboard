@@ -161,3 +161,5 @@ def handle_chat(payload: ChatRequest):
 
     except Exception as e:
         return {"answer": f"I encountered an error calculating that metric. Details: {str(e)}"}
+    
+dist_path = os.path.join(os.path.dirname(__name__), "dist")

@@ -130,6 +130,11 @@ def handle_chat(payload: ChatRequest):
         )
         generated_sql = sql_completion.choices[0].message.content.strip()
 
+        # ─── DIAGNOSTIC LOGS FOR VERIFICATION ─────────────────────────────
+        print("\n[DEBUG] --- THE AI GENERATED THIS SQL QUERY ---")
+        print(generated_sql, "\n")
+        # ──────────────────────────────────────────────────────────────────
+
         # Execute the generated SQL query against our local database 
         conn = get_db_connection()
         query_result_df = pd.read_sql_query(generated_sql, conn)
@@ -156,3 +161,5 @@ def handle_chat(payload: ChatRequest):
 
     except Exception as e:
         return {"answer": f"I encountered an error calculating that metric. Details: {str(e)}"}
+    
+dist_path = os.path.join(os.path.dirname(__name__), "dist")
